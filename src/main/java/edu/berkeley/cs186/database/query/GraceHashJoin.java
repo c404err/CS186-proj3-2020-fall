@@ -8,6 +8,8 @@ import edu.berkeley.cs186.database.memory.HashPartition;
 import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
 
+import javax.xml.crypto.Data;
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Function;
 
@@ -64,6 +66,21 @@ public class GraceHashJoin {
         // starting point. Make sure to use the hash function we provide to you
         // by calling hashFunc.apply(databox) to get an integer valued hash code
         // from a DataBox object.
+        while (records.hasNext()) {
+            Record record = records.next();
+            DataBox columnV = record.getValues().get(columnIndex);
+            int hash = hashFunc.apply(columnV);
+            int parN = hash % partitions.length;
+            if (parN < 0) {
+                parN += partitions.length;
+            }
+            if (left) {
+                partitions[parN].addLeftRecord(record);
+            }
+            else {
+                partitions[parN].addRightRecord(record);
+            }
+        }
 
         return;
     }
@@ -112,7 +129,27 @@ public class GraceHashJoin {
         ArrayList<Record> joinedRecords = new ArrayList<Record>();
 
         // TODO(proj3_part1): implement the building and probing stage
+        Map<DataBox, List<Record>> hashTable = new HashMap<>();
 
+        while (buildRecords.hasNext()) {
+            Record b = buildRecords.next();
+            DataBox bV = b.getValues().get(buildColumnIndex);
+            if (!hashTable.containsKey(bV)) {
+                hashTable.put(bV, new ArrayList<>());
+            }
+            hashTable.get(bV).add(b);
+        }
+
+        while (probeRecords.hasNext()) {
+            Record p = probeRecords.next();
+            DataBox pV = p.getValues().get(probeColumnIndex);
+            if (hashTable.containsKey(pV)) {
+                for (Record l : hashTable.get(pV)) {
+                    Record joined = joinRecords(l, p, probeFirst);
+                    joinedRecords.add(joined);
+                }
+            }
+        }
         // You shouldn't refer to any variable starting with "left" or "right" here
         // Use the "build" and "probe" variables we set up for you
         // Check out how SimpleHashJoin implements this function if you feel stuck.
@@ -159,6 +196,11 @@ public class GraceHashJoin {
             //
             // You may find the ArrayList.addAll method useful here.
             // It may be helpful to read through the HashPartition.java class for methods that will be useful here
+            try{
+                joinedRecords.addAll(buildAndProbe(partition));
+            } catch (IllegalArgumentException e){
+                joinedRecords.addAll(run(partition.getLeftIterator(), partition.getRightIterator(), pass + 1));
+            }
         }
         return joinedRecords;
     }
@@ -180,8 +222,11 @@ public class GraceHashJoin {
         // TODO(proj3_part1): create an array of partitions
         // You may find the provided helper function
         // createPartition() useful here.
-
-        return null;
+        HashPartition arr[] = new HashPartition[numBuffers - 1];
+        for (int i = 0; i < numBuffers - 1; i++) {
+            arr[i] = createPartition();
+        }
+        return arr;
     }
 
     // Feel free to add your own helper methods here if you wish to do so
@@ -277,7 +322,10 @@ public class GraceHashJoin {
         ArrayList<Record> rightRecords = new ArrayList<>();
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that SHJ breaks but not GHJ
-
+        for (int i = 0; i < 5000; i++) {
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(i));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 
@@ -302,6 +350,10 @@ public class GraceHashJoin {
         ArrayList<Record> rightRecords = new ArrayList<>();
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that GHJ breaks
+        for (int i = 0; i < 10000; i++) {
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(1));
+        }
 
         return new Pair<>(leftRecords, rightRecords);
     }
