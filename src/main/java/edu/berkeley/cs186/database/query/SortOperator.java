@@ -72,8 +72,16 @@ public class SortOperator {
      */
     public Run sortRun(Run run) {
         // TODO(proj3_part1): implement
+        List<Record> records = new ArrayList<>();
+        Iterator<Record> recordIterator = run.iterator();
+        while (recordIterator.hasNext()) {
+            records.add(recordIterator.next());
+        }
+        Run ans =  createRun();
+        records.sort(SortOperator.this.comparator);
+        ans.addRecords(records);
 
-        return null;
+        return ans;
     }
 
     /**
@@ -86,8 +94,18 @@ public class SortOperator {
      */
     public Run mergeSortedRuns(List<Run> runs) {
         // TODO(proj3_part1): implement
-
-        return null;
+        PriorityQueue<Pair<Record, Integer>> pq = new PriorityQueue<>(new RecordPairComparator());
+        for (int i = 0; i < runs.size(); i++) {
+            Iterator<Record> recordIter = runs.get(i).iterator();
+            while (recordIter.hasNext()) {
+                pq.add(new Pair<>(recordIter.next(), i));
+            }
+        }
+        Run ans = createRun();
+        while (!pq.isEmpty()) {
+            ans.addRecord(pq.poll().getFirst().getValues());
+        }
+        return ans;
     }
 
     /**
@@ -99,8 +117,15 @@ public class SortOperator {
      */
     public List<Run> mergePass(List<Run> runs) {
         // TODO(proj3_part1): implement
-
-        return Collections.emptyList();
+        List<Run> ans = new ArrayList<>();
+        while (runs.size() > 0) {
+            List<Run> toMerge = new ArrayList<>();
+            while (toMerge.size() < this.numBuffers - 1 & runs.size() > 0) {
+                toMerge.add(runs.remove(0));
+            }
+            ans.add(mergeSortedRuns(toMerge));
+        }
+        return ans;
     }
 
     /**
@@ -110,9 +135,23 @@ public class SortOperator {
      */
     public String sort() {
         // TODO(proj3_part1): implement
+        BacktrackingIterator<Page> pageIter = transaction.getPageIterator(tableName);
+        List<Run> sortedRuns = new ArrayList<>();
 
-        return this.tableName; // TODO(proj3_part1): replace this!
+        while (pageIter.hasNext()) {
+            BacktrackingIterator<Record> recordIter = transaction.getBlockIterator(tableName, pageIter, numBuffers);
+            Run run = createRunFromIterator(recordIter);
+
+            sortedRuns.add(sortRun(run));
+        }
+
+        while (sortedRuns.size() > 1) {
+            sortedRuns = mergePass(sortedRuns);
+        }
+
+        return sortedRuns.get(0).tableName();
     }
+
 
     public Iterator<Record> iterator() {
         if (sortedTableName == null) {
